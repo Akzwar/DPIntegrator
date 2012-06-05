@@ -1,4 +1,4 @@
-#include "../../VectTest/src/Vect.h"
+#include "../../Quat_Test/src/Quat.h"
 #include <math.h>
 #define mu  2.9591220829566038481357324012661e-4
 #include <stdio.h>
@@ -8,8 +8,8 @@ class Model
 	Vect IV;
  public:
 	Model(){}
-	virtual const Vect getRight( const Vect& Vt, long double t ){printf("Fuuuuuuuuuuuuuuuu\n");}
-	Vect InitVect(){ return IV; } 
+	virtual const Vect getRight( const Vect& Vt, long double t ){}
+	Vect InitVect(){ return IV; }
 };
 
 class KeplerModel : public Model
@@ -18,12 +18,12 @@ class KeplerModel : public Model
 	KeplerModel() : Model()
 	{
 		IV = Vect( 6 );
-		IV[0] = 0.81397168111;//X
-		IV[1] = -0.010143699142;//dX
-		IV[2] = 0.5225171672;//...
-		IV[3] = 0.012874795077;
-		IV[4] = 0.22658533987;
-		IV[5] = 0.0055828817986;
+		IV[ V_X ] = 0.11601490913916648627;
+		IV[ V_Y ] = -0.92660555364038517604;
+		IV[ V_Z ] = -0.40180627760698804496;
+		IV[ V_dX ] = 0.01681162005220228976;
+		IV[ V_dY ] = 0.00174313168798203152;
+		IV[ V_dZ ] = 0.00075597376713614610; 
 	}	
 	virtual const Vect getRight( const Vect& Vt, long double t )
 	{
@@ -32,13 +32,13 @@ class KeplerModel : public Model
 		Vect retVect( V.size() );
 		long double R;
 		
-		R = sqrt( V[0] * V[0] + V[2] * V[2] + V[4] * V[4] );
-		retVect[0] = V[1];
-		retVect[2] = V[3];
-		retVect[4] = V[5];
-		retVect[1] = -mu * V[0]/( R * R * R );
-		retVect[3] = -mu * V[2]/( R * R * R );
-		retVect[5] = -mu * V[4]/( R * R * R );
+		R = sqrt( V[V_X] * V[V_X] + V[V_Y] * V[V_Y] + V[V_Z] * V[V_Z] );
+		retVect[V_X] = V[V_dX];
+		retVect[V_Y] = V[V_dY];
+		retVect[V_Z] = V[V_dZ];
+		retVect[V_dX] = -mu * V[V_X]/( R * R * R );
+		retVect[V_dY] = -mu * V[V_Y]/( R * R * R );
+		retVect[V_dZ] = -mu * V[V_Z]/( R * R * R );
 		return retVect;
 	}
 };

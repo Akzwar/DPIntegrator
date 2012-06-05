@@ -23,7 +23,11 @@ class DPIntegrator
 	Model* M;
 		
 	DPIntegrator(){}
-	~DPIntegrator(){if(keps!=NULL)delete [] keps;}
+	~DPIntegrator()
+	{
+		if( keps != NULL )
+			delete [] keps;
+	}
 	DPIntegrator( Model* _M, long double _t0, long double _tk, long double _eps_max, long double _h = 0 )
 	{
 		eps = 0;
@@ -176,4 +180,8 @@ class DPIntegrator
 		return OutVect;
 		return CurrVect;
 	}
+	long double getT()
+	{return this->t;}
+	long double getStep()
+	{return this->step;}
 };

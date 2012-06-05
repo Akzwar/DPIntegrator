@@ -10,6 +10,5 @@ int main(int argc, char** argv)
 		integr.NextStep();	
 		printf("%f\n",(double)(integr.PhaseVect())[0]);
 	}
-	delete model;
 	return 0;
 }
