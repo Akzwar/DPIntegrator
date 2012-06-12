@@ -3,12 +3,13 @@
 
 int main(int argc, char** argv)
 {
-	KeplerModel* model = new KeplerModel;
+	DotMassesModel* model = new DotMassesModel;
 	DPIntegrator integr( model, 0, 100, 10e-8 );
-	for(int i = 0; i<=100; i++)
-	{	
+	while( integr.getT() < integr.getTk() )
+	{
+	//	printf("%f\n",(double)integr.getStep());	
+	integr.PhaseVect().print();
 		integr.NextStep();	
-		printf("%f\n",(double)(integr.PhaseVect())[0]);
 	}
 	return 0;
 }

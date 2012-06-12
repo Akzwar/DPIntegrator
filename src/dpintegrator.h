@@ -94,6 +94,7 @@ class DPIntegrator
             	c[7]=1.0;
 		Tout = step+1;
 		keps = new long double[CurrVect.size()];
+		t = t0;
 	}
 		
 	void SmallStep()
@@ -184,4 +185,6 @@ class DPIntegrator
 	{return this->t;}
 	long double getStep()
 	{return this->step;}
+	long double getTk()
+	{return this->tk;}
 };
