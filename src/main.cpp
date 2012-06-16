@@ -3,13 +3,14 @@
 
 int main(int argc, char** argv)
 {
-	DotMassesModel* model = new DotMassesModel;
-	DPIntegrator integr( model, 0, 100, 10e-8 );
-	while( integr.getT() < integr.getTk() )
+	NormalSphereFuncModel* model = new NormalSphereFuncModel;
+	DPIntegrator integr( model, 0, 100, 10e-18 );
+	//while( integr.getT() < integr.getTk() )
+	for(int i=0;i<200; i++)
 	{
-	//	printf("%f\n",(double)integr.getStep());	
-	integr.PhaseVect().print();
+		integr.PhaseVect().print();
 		integr.NextStep();	
 	}
+	//printf("%f",(double)LegandrSin(4,0,1));
 	return 0;
 }

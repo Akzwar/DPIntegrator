@@ -19,7 +19,6 @@ class KeplerModel : public Model
 	KeplerModel() : Model()
 	{  
 		mu = 2.9591220829566038481357324012661e-4;
-
 		IV = Vect( 6 );
 		IV[ V_X ] = 0.11601490913916648627;
 		IV[ V_Y ] = -0.92660555364038517604;
@@ -114,4 +113,163 @@ class DotMassesModel : public KeplerModel
 		retVect[V_dZ] = summ[V_Z];
 		return retVect;	
 	}
+};
+
+	
+long double LegandrSin( int n, int m, long double Phi )
+{
+	double sm;
+	if( (m - 1) == 0 )
+		sm = 0.5;
+	else 
+		sm = 1;
+	if( n < m )
+		return 0;
+	if( n == m && m == 0 )
+		return 1;
+	if( n == m && m!=0 )
+		return LegandrSin( n-1, m-1, Phi ) * cos(Phi) * sqrt( (2*n+1)/(float)(2*n*sm) );
+	return LegandrSin( n-1, m, Phi ) * sin(Phi) * sqrt( (4*n*n - 1)/(n*n-m*m) ) - LegandrSin( n-2, m, Phi ) * sqrt((( (n-1)*(n-1) )-m*m)*(2*n+1)/((n*n-m*m)*(2*n-3)));
+}
+
+long double dLegandrSin( int n, int m, long double Phi )
+{
+	double sm;
+	if( m == 0 )
+		sm = 0.5;
+	else 
+		sm = 1;
+	return -( m * tan(Phi) * LegandrSin( n, m, Phi ) - sqrt( sm*(n-m)*(n+m+1) ) * LegandrSin( n, m+1, Phi ) );
+}
+
+class NormalSphereFuncModel : public Model
+{
+ private:
+	static const double ae = 6378.136;
+	static const long double C20 = -484165 * 10e-9;
+	static const long double C40 = 790.3 * 10e-9;	
+	long double mu;
+	long double P20,P40;
+ public:
+	NormalSphereFuncModel() : Model()
+	{
+		mu = 398600.436*10e9;
+		IV = Vect( 6 );
+		IV[ V_X ] = 0.11601490913916648627*11000;
+		IV[ V_Y ] = -0.92660555364038517604*11000;
+		IV[ V_Z ] = -0.40180627760698804496*11000;
+		IV[ V_dX ] = 0.11681162005220228976*11000;
+		IV[ V_dY ] = 0.00174313168798203152*11000;
+		IV[ V_dZ ] = 0.00075597376713614610*11000; 
+
+	}
+	virtual const Vect getRight( const Vect& Vt, long double t )
+	{
+		Vect V( Vt );
+		Vect retVect( V.size() );
+		Vect dV0( V.size() );
+		long double Ro, Phi, Lambda, dPhi, dRo, dLambda, R;
+		long double r0 = sqrt( V[V_X] * V[V_X] + V[V_Y] * V[V_Y] );
+		R = V.Length();
+		Ro = R;
+		Phi = atan( V[V_Z]/r0 );
+		Lambda = atan( V[V_Y] / V[V_X] );
+		//printf("SC=");
+		//Vect(Ro,Phi,Lambda).print();
+		//dRo = -mu / ( Ro * Ro ) - 3 * C20 * mu * ae * ae * LegandrSin( 2, 0 , Phi ) / pow( Ro, 4 ) - 5 * C40 * mu * pow(ae,4) * LegandrSin( 4,0,Phi ) / pow( Ro, 6 );
+		//dRo = -(3*C20*ae*ae*LegandrSin(2,0,Phi)*Ro*Ro + 5*C40*pow(ae,4)*LegandrSin(4,0,Phi)+pow(Ro,4))/pow(Ro,6);
+		//dPhi = mu/Ro * (C20 * pow(ae/Ro,2)*dLegandrSin(2,0,Phi)+C40*pow(ae/Ro,4)*dLegandrSin(4,0,Phi));
+		dRo = -mu/Ro/ae*(3*pow(ae/Ro,3)*C20*LegandrSin(2,0,Phi)+5*pow(ae/Ro,5)*C40*LegandrSin(4,0,Phi));
+		dPhi = -mu/Ro/ae*(pow(ae/Ro,3)*C20*dLegandrSin(2,0,Phi)+pow(ae/Ro,5)*C40*dLegandrSin(4,0,Phi));
+		printf("-----%f\n",(double)dRo);
+		dLambda = 0;
+		dV0 = Vect(dRo, dPhi, dLambda);
+		//dV0.print();
+		Matrix MdV0;
+		MdV0.addRow(dV0);
+		MdV0.Transpose();
+		Matrix MP(3,3);
+		MP[0][0] = V[V_X] / Ro; MP[0][1] = -V[V_X] * V[V_Z] / ( Ro * r0 ); MP[0][2] = -V[V_Y] / r0;
+		MP[1][0] = V[V_Y] / Ro; MP[1][1] = -V[V_Y] * V[V_Z] / ( Ro * r0 ); MP[1][2] = V[V_X] / r0;
+		MP[2][0] = V[V_Z] / Ro; MP[2][1] = -r0 / Ro;			   MP[2][2] = 0;
+		Matrix res = MP * MdV0;
+		retVect[V_X] = V[ V_dX ];
+		retVect[V_Y] = V[ V_dY ];
+		retVect[V_Z] = V[ V_dZ ];
+		retVect[V_dX] = res[0][0];
+		retVect[V_dY] = res[1][0];
+		retVect[V_dZ] = res[2][0];
+		return retVect;
+	}
+};
+
+class AnomalSphereFuncModel : public Model
+{
+ private:
+	double C[37][37],S[37][37];
+	long double mu;
+ public:
+	AnomalSphereFuncModel() : Model()
+	{
+		C[1][0] = 0; C[1][1] = 0; 
+		C[2][0] = -484164.95;	C[2][1] = 0.05; C[2][2] = 2438.76;
+		C[3][0] = 957.16; C[3][1] = ; C[3][2] = ; C[3][3] = ;
+                mu = 398600.436*10e9;
+                IV = Vect( 6 );
+                IV[ V_X ] = 0.11601490913916648627*11000;
+                IV[ V_Y ] = -0.92660555364038517604*11000;
+                IV[ V_Z ] = -0.40180627760698804496*11000;
+                IV[ V_dX ] = 0.11681162005220228976*11000;
+                IV[ V_dY ] = 0.00174313168798203152*11000;
+                IV[ V_dZ ] = 0.00075597376713614610*11000;
+	}
+	virtual const getRight( const Vect& V, long double t )
+	{
+		int N = 35;
+		long double summ1 = 0;
+		long double summ2 = 0;
+		Vect V(Vt);
+		Vect retVect( V.size() );
+		long double Ro, Phi, Lambda, dPhi, dRo, dLambda;
+		long double r0 = sqrt( V[V_X] * V[V_X] + V[V_Y] * V[V_Y] );
+		Ro = V.Length();
+		Phi = atan( V[V_Z] / r0 );
+		Lambda = atan( V[V_Y] / V[V_X] );
+		for( int n = 0; n < N; n++ )
+		{
+			summ2 = 0;
+			for( int m = 0; m <= n; m++ )
+				summ2 += (C[n][m]*cos(m*Lambda) + S[n][m]*sin(m*Lambda))*LegandrSin(n,m,Phi);
+			summ1 += (n+1)*pow(ae/Ro,n+1)*summ2;
+		}
+		dRo = -mu * summ1 / (ae*Ro);
+		summ1 = 0;
+		for( int n = 0; n < N; n++ )
+		{
+			summ2 = 0;
+			for( int m = 0; m <= n; m++ )
+				summ2 += (C[n][m]*cos(m*Lambda) + S[n][m]*sin(m*Lambda))*dLegandrSin(n,m,Phi);
+			summ1 += pow(ae/Ro,n+1)*summ2;
+		}
+		dPhi = -mu * summ1 / (ae*Ro);
+		summ1 = 0;
+		for( int n = 0; n < N; n++ )
+		{
+			summ2 = 0;
+			for( int m = 0; m <= n; m++ )
+				summ2 += (-C[n][m]*sin(m*Lambda) + S[n][m]*cos(m*Lambda))*m*LegandrSin(n,m,Phi);
+			summ1 += pow(ae/Ro,n+1)*summ2;
+		}
+		dLambda = -mu * summ1 / (ae*Ro*cos(Phi));			
+		Matrix MP(3,3);
+                MP[0][0] = V[V_X] / Ro; MP[0][1] = -V[V_X] * V[V_Z] / ( Ro * r0 ); MP[0][2] = -V[V_Y] / r0;
+                MP[1][0] = V[V_Y] / Ro; MP[1][1] = -V[V_Y] * V[V_Z] / ( Ro * r0 ); MP[1][2] = V[V_X] / r0;
+                MP[2][0] = V[V_Z] / Ro; MP[2][1] = -r0 / Ro;                       MP[2][2] = 0;
+		Matrix gS;
+		gs.AddRow(Vect(dRo,dPhi,dLambda));
+		gs.Transpose();
+		Matrix res = MP * gS;
+		retVect = V * (-mu/V.Length()) + Vect(res[0][0],res[1][0],res[2][0]);
+		return retVect;
+	}	
 };
