@@ -1,6 +1,9 @@
 #include "../../Quat_Test/src/Quat.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#pragma once
 class Model 
 {
  protected:
@@ -202,7 +205,7 @@ class NormalSphereFuncModel : public Model
 		return retVect;
 	}
 };
-
+/*
 class AnomalSphereFuncModel : public Model
 {
  private:
@@ -223,7 +226,7 @@ class AnomalSphereFuncModel : public Model
                 IV[ V_dY ] = 0.00174313168798203152*11000;
                 IV[ V_dZ ] = 0.00075597376713614610*11000;
 	}
-	virtual const getRight( const Vect& V, long double t )
+	virtual const Vect getRight( const Vect& Vt, long double t )
 	{
 		int N = 35;
 		long double summ1 = 0;
@@ -272,4 +275,30 @@ class AnomalSphereFuncModel : public Model
 		retVect = V * (-mu/V.Length()) + Vect(res[0][0],res[1][0],res[2][0]);
 		return retVect;
 	}	
+};
+*/
+class ShapingFilterExp : public Model
+{
+ private: 
+	double D, lambda;
+ public:
+	ShapingFilterExp(double _D, double _lambda)
+	{
+		IV = Vect(2);
+		IV[0] = 0;
+		IV[1] = 0;
+		D = _D;
+		lambda = _lambda;
+		srand(time(NULL));
+	}
+	virtual const Vect getRight( const Vect& Vt, long double t )
+	{
+		Vect V(Vt);
+		Vect retVect(V.size());
+		//long double nu = sqrt(exp(1/rand())*2*1/t)*sin(rand()*2*M_PI);
+		double nu = rand()/(double)RAND_MAX * 10000 - 5000;
+		retVect[0] = V[1];
+		retVect[1] = nu * sqrt(2*D*lambda)-V[0]*lambda;
+		return retVect;
+	}
 };
