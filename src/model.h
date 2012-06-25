@@ -4,44 +4,66 @@
 #include <stdlib.h>
 #include <time.h>
 #pragma once
-class Model 
+template<class DD> class Model 
 {
  protected:
-	Vect IV;
+	Vect<DD> IV;
+    DD mu;
  public:
 	Model(){}
-	virtual const Vect getRight( const Vect& Vt, long double t ){}
-	Vect InitVect(){ return IV; }
+    Model(DD p, DD e, DD i, DD Omega, DD omega, DD Theta)
+    {
+        mu = 3.986004418e5 * 3600 * 3600;
+        IV = Vect<DD>( 6 );
+        DD R = p / ( 1 + e * cos( Theta ));
+        DD u = Theta + omega;
+
+        IV[V_X] = R * ( cos( u ) * cos( Omega ) - sin( u ) * sin( Omega ) * cos( i ) );
+        IV[V_Y] = R * ( cos( u ) * sin( Omega ) - sin( u ) * cos( Omega ) * cos( i ) );
+        IV[V_Z] = R * sin( u ) * sin( i );
+
+        DD Vr = sqrt( mu / p ) * e * sin( Theta ) / R;
+        DD Vn = sqrt( mu / p ) * ( 1 + e * cos( Theta) );
+
+        IV[V_dX] = IV[V_X] * Vr + Vn * ( -sin( u ) * cos( Omega ) 
+                                        -cos( u ) * sin( Omega ) * cos( i ) );
+        IV[V_dY] = IV[V_Y] * Vr + Vn * ( -sin( u ) * sin( Omega ) 
+                                        +cos( u ) * cos( Omega ) * cos( i ) );
+        IV[V_dZ] = IV[V_Z] * Vr + Vn *cos( u ) * sin( i );
+    } 
+	virtual const Vect<DD> getRight( const Vect<DD>& Vt, DD t ){}
+	Vect<DD> InitVect(){ return IV; }
 };
 
-class KeplerModel : public Model
+template<class DD> class KeplerModel : public Model<DD>
 {
- protected:
-	long double mu;
  public:
-	KeplerModel() : Model()
+    KeplerModel() : Model<DD>(){}
+	KeplerModel( double R ) : Model<DD>()
 	{  
-		mu = 2.9591220829566038481357324012661e-4;
-		IV = Vect( 6 );
-		IV[ V_X ] = 0.11601490913916648627;
-		IV[ V_Y ] = -0.92660555364038517604;
-		IV[ V_Z ] = -0.40180627760698804496;
-		IV[ V_dX ] = 0.01681162005220228976;
-		IV[ V_dY ] = 0.00174313168798203152;
-		IV[ V_dZ ] = 0.00075597376713614610; 
+		this->mu = 2.9591220829566038481357324012661e-4;
+		this->IV = Vect<DD>( 6 );
+		this->IV[ V_X ] = 0.11601490913916648627 * R;
+		this->IV[ V_Y ] = -0.92660555364038517604 * R;
+		this->IV[ V_Z ] = -0.40180627760698804496 * R;
+		this->IV[ V_dX ] = 0.01681162005220228976 * R;
+		this->IV[ V_dY ] = 0.00174313168798203152 * R;
+		this->IV[ V_dZ ] = 0.00075597376713614610 * R; 
 	}	
-	virtual const Vect getRight( const Vect& Vt, long double t )
+    KeplerModel(DD p, DD e, DD i, DD Omega, DD omega, DD Theta) : Model<DD>( p,e,i,Omega,omega,Theta ){}
+
+	virtual const Vect<DD> getRight( const Vect<DD>& Vt, DD t )
 	{
 		
-		Vect V = Vect(Vt);
-		Vect retVect( V.size() );
-		long double R = sqrt( V[V_X] * V[V_X] + V[V_Y] * V[V_Y] + V[V_Z] * V[V_Z] );
+		Vect<DD> V(Vt);
+		Vect<DD> retVect( V.size() );
+		DD R = sqrt( V[V_X] * V[V_X] + V[V_Y] * V[V_Y] + V[V_Z] * V[V_Z] );
 		retVect[V_X] = V[V_dX];
 		retVect[V_Y] = V[V_dY];
 		retVect[V_Z] = V[V_dZ];
-		retVect[V_dX] = -mu * V[V_X]/( R * R * R );
-		retVect[V_dY] = -mu * V[V_Y]/( R * R * R );
-		retVect[V_dZ] = -mu * V[V_Z]/( R * R * R );
+		retVect[V_dX] = -this->mu * V[V_X]/( R * R * R );
+		retVect[V_dY] = -this->mu * V[V_Y]/( R * R * R );
+		retVect[V_dZ] = -this->mu * V[V_Z]/( R * R * R );
 		return retVect;
 	}
 };
@@ -51,24 +73,17 @@ struct MassDot
 	double mass,X,Y,Z;
 };
 
-class DotMassesModel : public KeplerModel
+template<class DD>
+class DotMassesModel : public Model<DD>
 {
  private:
 	MassDot MD[8];
-	long double Emass;
-	long double aem;
+	DD Emass;
+	DD aem;
  public:
-	DotMassesModel() : KeplerModel()
+	DotMassesModel() : Model<DD>()
 	{	
-		mu = 398600.436 * 10e9;
-		IV[ V_X ] = -5000;
-		IV[ V_Y ] = 0;
-		IV[ V_Z ] = 0;
-		IV[ V_dX ] = 0;
-		IV[ V_dY ] = 0;
-		IV[ V_dZ ] = 0;
-		Emass = 5.9742*10e24;
-		aem = 149597870.66;
+		Emass = 5.9742*10e23;
 		MD[0].mass =  10652.73; MD[0].X = -4200.917; MD[0].Y = 3067.194;  MD[0].Z = -217.754;
 		MD[1].mass =  -4160.24; MD[1].X = 856.705;   MD[1].Y = 5487.255;  MD[1].Z = -599.402;
 		MD[2].mass =  41357.43; MD[2].X = 2843.858;  MD[2].Y = -1911.723; MD[2].Z = 3151.231;
@@ -77,37 +92,43 @@ class DotMassesModel : public KeplerModel
 		MD[5].mass = -50642.30; MD[5].X = -1259.093; MD[5].Y = 271.749;   MD[5].Z = -3997.510;
 		MD[6].mass =   6602.59; MD[6].X = -5413.541; MD[6].Y = 531.582;	  MD[6].Z = -1948.403;
 		MD[7].mass = -19965.52; MD[7].X = 184.686;   MD[7].Y = 4435.039;  MD[7].Z = 3698.865;
-		for( int i = 0; i < 8; i++ )
-		{
-			//MD[i].X /= aem;
-			//MD[i].Y /= aem;
-			//MD[i].Z /= aem;
-		}
+        for( int i = 0; i < 8; i++)
+            MD[i].mass *= 10e10;
 	}
-	virtual const Vect getRight( const Vect& Vt, long double t )
+    DotMassesModel(DD p, DD e, DD i, DD Omega, DD omega, DD Theta) : Model<DD>( p,e,i,Omega,omega,Theta ) 
 	{
-		Vect V( Vt );
-		Vect retVect( V.size() );
-		Vect summ( V.size() );
-		long double dX, dY, dZ, R, eps, X, Y, Z;
+		Emass = 5.9742*10e23;
+		MD[0].mass =  10652.73; MD[0].X = -4200.917; MD[0].Y = 3067.194;  MD[0].Z = -217.754;
+		MD[1].mass =  -4160.24; MD[1].X = 856.705;   MD[1].Y = 5487.255;  MD[1].Z = -599.402;
+		MD[2].mass =  41357.43; MD[2].X = 2843.858;  MD[2].Y = -1911.723; MD[2].Z = 3151.231;
+		MD[3].mass = -48929.27; MD[3].X = 1469.622;  MD[3].Y = -3260.508; MD[3].Z = 2157.722;
+		MD[4].mass =   3856.77; MD[4].X = 2825.441;  MD[4].Y = 2630.083;  MD[4].Z = -4148.659;
+		MD[5].mass = -50642.30; MD[5].X = -1259.093; MD[5].Y = 271.749;   MD[5].Z = -3997.510;
+		MD[6].mass =   6602.59; MD[6].X = -5413.541; MD[6].Y = 531.582;	  MD[6].Z = -1948.403;
+		MD[7].mass = -19965.52; MD[7].X = 184.686;   MD[7].Y = 4435.039;  MD[7].Z = 3698.865;
+        for( int i = 0; i < 8; i++)
+            MD[i].mass *= 10e10;
+	}
+
+	virtual const Vect<DD> getRight( const Vect<DD>& Vt, DD t )
+	{
+		Vect<DD> V( Vt );
+		Vect<DD> retVect( V.size() );
+		Vect<DD> summ( V.size() );
+		DD dX, dY, dZ, R, eps, X, Y, Z;
 		for( int i = 0; i < 8; i++ )
 		{
 			dX = MD[i].X - V[V_X];
 			dY = MD[i].Y - V[V_Y];
 			dZ = MD[i].Z - V[V_Z];
-			//dX = sqrt(dX*dX);
-			//dY = sqrt(dY*dY);
-			//dZ = sqrt(dZ*dZ);
-			R = sqrt( dX * dX + dY * dY + dZ * dZ );
-			eps = MD[i].mass * 10e10 / Emass;
-			X = -eps * dX / pow( R, 3.0/2.0 );
-			Y = -eps * dY / pow( R, 3.0/2.0 );
-			Z = -eps * dZ / pow( R, 3.0/2.0 );
-			//printf("%f,%f,%f\n",(double)X*10e10, (double)Y, (double)Z);
-			summ += Vect( X, Y, Z ) ; 
+			R =  dX * dX + dY * dY + dZ * dZ ;
+			eps = MD[i].mass / Emass;
+			X = -eps * dX * 0.5 / pow(R,1/3.0);
+			Y = -eps * dY * 0.5 / pow(R,1/3.0);
+			Z = -eps * dZ * 0.5 / pow(R,1/3.0);
+			summ += Vect<DD>( X, Y, Z ) ; 
 		}
-		summ = summ * mu;
-		//summ.print();
+		summ = summ * this->mu;
 		retVect[V_X] = V[V_dX];
 		retVect[V_Y] = V[V_dY];
 		retVect[V_Z] = V[V_dZ];
@@ -119,7 +140,7 @@ class DotMassesModel : public KeplerModel
 };
 
 	
-long double LegandrSin( int n, int m, long double Phi )
+double LegandrSin( int n, int m, double Phi )
 {
 	double sm;
 	if( (m - 1) == 0 )
@@ -131,11 +152,11 @@ long double LegandrSin( int n, int m, long double Phi )
 	if( n == m && m == 0 )
 		return 1;
 	if( n == m && m!=0 )
-		return LegandrSin( n-1, m-1, Phi ) * cos(Phi) * sqrt( (2*n+1)/(float)(2*n*sm) );
-	return LegandrSin( n-1, m, Phi ) * sin(Phi) * sqrt( (4*n*n - 1)/(n*n-m*m) ) - LegandrSin( n-2, m, Phi ) * sqrt((( (n-1)*(n-1) )-m*m)*(2*n+1)/((n*n-m*m)*(2*n-3)));
+		return LegandrSin( n-1, m-1, Phi ) * cos(Phi) * sqrt( (2*n+1)/(double)(2*n)*1/sm );
+	return LegandrSin( n-1, m, Phi ) * sin(Phi) * sqrt( (4*n*n - 1)/(double)(n*n-m*m) ) - LegandrSin( n-2, m, Phi ) * sqrt((( (n-1)*(n-1) )-m*m)*(2*n+1)/(double)((n*n-m*m)*(2*n-3)));
 }
 
-long double dLegandrSin( int n, int m, long double Phi )
+double dLegandrSin( int n, int m, double Phi )
 {
 	double sm;
 	if( m == 0 )
@@ -145,57 +166,45 @@ long double dLegandrSin( int n, int m, long double Phi )
 	return -( m * tan(Phi) * LegandrSin( n, m, Phi ) - sqrt( sm*(n-m)*(n+m+1) ) * LegandrSin( n, m+1, Phi ) );
 }
 
-class NormalSphereFuncModel : public Model
+template<typename DD>
+class NormalSphereFuncModel : public Model<DD>
 {
  private:
 	static const double ae = 6378.136;
-	static const long double C20 = -484165 * 10e-9;
-	static const long double C40 = 790.3 * 10e-9;	
-	long double mu;
-	long double P20,P40;
+	static const long double C20 = -484165 * 10e-8;
+	static const long double C40 = 790.3 * 10e-8;	
  public:
-	NormalSphereFuncModel() : Model()
+	NormalSphereFuncModel() : Model<DD>()
 	{
-		mu = 398600.436*10e9;
-		IV = Vect( 6 );
-		IV[ V_X ] = 0.11601490913916648627*11000;
-		IV[ V_Y ] = -0.92660555364038517604*11000;
-		IV[ V_Z ] = -0.40180627760698804496*11000;
-		IV[ V_dX ] = 0.11681162005220228976*11000;
-		IV[ V_dY ] = 0.00174313168798203152*11000;
-		IV[ V_dZ ] = 0.00075597376713614610*11000; 
-
 	}
-	virtual const Vect getRight( const Vect& Vt, long double t )
+    NormalSphereFuncModel(DD p, DD e, DD i, DD Omega, DD omega, DD Theta) : Model<DD>( p,e,i,Omega,omega,Theta )
+    {
+    }
+
+	virtual const Vect<DD> getRight( const Vect<DD>& Vt, DD t )
 	{
-		Vect V( Vt );
-		Vect retVect( V.size() );
-		Vect dV0( V.size() );
-		long double Ro, Phi, Lambda, dPhi, dRo, dLambda, R;
-		long double r0 = sqrt( V[V_X] * V[V_X] + V[V_Y] * V[V_Y] );
-		R = V.Length();
-		Ro = R;
-		Phi = atan( V[V_Z]/r0 );
-		Lambda = atan( V[V_Y] / V[V_X] );
-		//printf("SC=");
-		//Vect(Ro,Phi,Lambda).print();
-		//dRo = -mu / ( Ro * Ro ) - 3 * C20 * mu * ae * ae * LegandrSin( 2, 0 , Phi ) / pow( Ro, 4 ) - 5 * C40 * mu * pow(ae,4) * LegandrSin( 4,0,Phi ) / pow( Ro, 6 );
-		//dRo = -(3*C20*ae*ae*LegandrSin(2,0,Phi)*Ro*Ro + 5*C40*pow(ae,4)*LegandrSin(4,0,Phi)+pow(Ro,4))/pow(Ro,6);
-		//dPhi = mu/Ro * (C20 * pow(ae/Ro,2)*dLegandrSin(2,0,Phi)+C40*pow(ae/Ro,4)*dLegandrSin(4,0,Phi));
-		dRo = -mu/Ro/ae*(3*pow(ae/Ro,3)*C20*LegandrSin(2,0,Phi)+5*pow(ae/Ro,5)*C40*LegandrSin(4,0,Phi));
-		dPhi = -mu/Ro/ae*(pow(ae/Ro,3)*C20*dLegandrSin(2,0,Phi)+pow(ae/Ro,5)*C40*dLegandrSin(4,0,Phi));
-		printf("-----%f\n",(double)dRo);
+		Vect<DD> V( Vt );
+		Vect<DD> retVect( V.size() );
+		Vect<DD> dV0( V.size() );
+		DD Ro, Phi, Lambda, dPhi, dRo, dLambda;
+		DD r0 = sqrt( V[V_X] * V[V_X] + V[V_Y] * V[V_Y] );
+		Ro = V.Length();
+		Phi = atan2( V[V_Z], r0 );
+		Lambda = atan2( V[V_Y], V[V_X] );
+        dRo = -this->mu/Ro/ae*( 3*pow(ae/Ro,3)*C20*LegandrSin(2,0,Phi)
+                                + 5*pow(ae/Ro,5)*C40*LegandrSin(2,0,Phi)+1);
+        dPhi = -this->mu/Ro/ae*( pow(ae/Ro,3)*C20*dLegandrSin(2,0,Phi)
+                                + pow(ae/Ro,5)*C40*dLegandrSin(4,0,Phi));
 		dLambda = 0;
-		dV0 = Vect(dRo, dPhi, dLambda);
-		//dV0.print();
-		Matrix MdV0;
+		dV0 = Vect<DD>(dRo, dPhi, dLambda);
+		Matrix<DD> MdV0;
 		MdV0.addRow(dV0);
 		MdV0.Transpose();
-		Matrix MP(3,3);
+		Matrix<DD> MP(3,3);
 		MP[0][0] = V[V_X] / Ro; MP[0][1] = -V[V_X] * V[V_Z] / ( Ro * r0 ); MP[0][2] = -V[V_Y] / r0;
 		MP[1][0] = V[V_Y] / Ro; MP[1][1] = -V[V_Y] * V[V_Z] / ( Ro * r0 ); MP[1][2] = V[V_X] / r0;
-		MP[2][0] = V[V_Z] / Ro; MP[2][1] = -r0 / Ro;			   MP[2][2] = 0;
-		Matrix res = MP * MdV0;
+		MP[2][0] = V[V_Z] / Ro; MP[2][1] = -r0 / Ro;                       MP[2][2] = 0;
+		Matrix<DD> res = MP * MdV0;
 		retVect[V_X] = V[ V_dX ];
 		retVect[V_Y] = V[ V_dY ];
 		retVect[V_Z] = V[ V_dZ ];
@@ -205,98 +214,170 @@ class NormalSphereFuncModel : public Model
 		return retVect;
 	}
 };
-/*
-class AnomalSphereFuncModel : public Model
+
+template<class DD>
+class AnomalSphereFuncModel : public Model<DD>
 {
  private:
-	double C[37][37],S[37][37];
-	long double mu;
+	double C[7][7],S[7][7];
+	static const double ae = 6378.136;
  public:
-	AnomalSphereFuncModel() : Model()
+	AnomalSphereFuncModel() : Model<DD>()
 	{
+        for(int i = 0; i < 7; i++)
+		    for( int j =0; j<7;j++ )
+			{
+				C[i][j] = 0;
+				S[i][j] = 0;
+			}
 		C[1][0] = 0; C[1][1] = 0; 
 		C[2][0] = -484164.95;	C[2][1] = 0.05; C[2][2] = 2438.76;
-		C[3][0] = 957.16; C[3][1] = ; C[3][2] = ; C[3][3] = ;
-                mu = 398600.436*10e9;
-                IV = Vect( 6 );
-                IV[ V_X ] = 0.11601490913916648627*11000;
-                IV[ V_Y ] = -0.92660555364038517604*11000;
-                IV[ V_Z ] = -0.40180627760698804496*11000;
-                IV[ V_dX ] = 0.11681162005220228976*11000;
-                IV[ V_dY ] = 0.00174313168798203152*11000;
-                IV[ V_dZ ] = 0.00075597376713614610*11000;
+		C[3][0] = 957.16; C[3][1] = 2032.83; C[3][2] = 906.86; C[3][3] = 715.99;
+		C[4][0] = 543.52; C[4][1] = -531.34; C[4][2] = 350.04; C[4][3] = 989.28; C[4][4] = -193.25;
+		C[5][0] = 68.72;  C[5][1] = -67.36;  C[5][2] = 651.94; C[5][3] = -451.45; C[5][4] = -293.19;
+		C[5][5] = 191.57; 
+		C[6][0] = -143.45; C[6][1] = -77.66; C[6][2] = 38.02; C[6][3] = 56.65; C[6][4] = -90.89;
+		C[6][5] = -268.71; C[6][6] = 14.97;
+		S[1][1] = 0.0; S[2][1] = 0.01; S[2][2] = -1399.68; S[3][1] = 249.03; S[3][2] = -619.29;
+		S[3][3] = 1400.74; S[4][1] = -471.95; S[4][2] = 651.66; S[4][3] = -197.67; S[4][4] = 298.76;
+		S[5][1] = -84.56; S[5][2] = -326.28; S[5][3] = -201.09; S[5][4] = 54.38; S[5][5] = -669.62;
+		S[6][1] = 32.21; S[6][2] = -364.79; S[6][3] = 2.64; S[6][4] = -465.16; S[6][5] = -535.01;
+		S[6][6] = -243.90;
 	}
-	virtual const Vect getRight( const Vect& Vt, long double t )
+    AnomalSphereFuncModel(DD p, DD e, DD i, DD Omega, DD omega, DD Theta) : Model<DD>( p,e,i,Omega,omega,Theta )
+    {
+        for(int i = 0; i < 7; i++)
+		    for( int j =0; j<7;j++ )
+
+			{
+				C[i][j] = 0;
+				S[i][j] = 0;
+			}
+		C[1][0] = 0; C[1][1] = 0; 
+		C[2][0] = -484164.95;	C[2][1] = 0.05; C[2][2] = 2438.76;
+		C[3][0] = 957.16; C[3][1] = 2032.83; C[3][2] = 906.86; C[3][3] = 715.99;
+		C[4][0] = 543.52; C[4][1] = -531.34; C[4][2] = 350.04; C[4][3] = 989.28; C[4][4] = -193.25;
+		C[5][0] = 68.72;  C[5][1] = -67.36;  C[5][2] = 651.94; C[5][3] = -451.45; C[5][4] = -293.19;
+		C[5][5] = 191.57; 
+		C[6][0] = -143.45; C[6][1] = -77.66; C[6][2] = 38.02; C[6][3] = 56.65; C[6][4] = -90.89;
+		C[6][5] = -268.71; C[6][6] = 14.97;
+		S[1][1] = 0.0; S[2][1] = 0.01; S[2][2] = -1399.68; S[3][1] = 249.03; S[3][2] = -619.29;
+		S[3][3] = 1400.74; S[4][1] = -471.95; S[4][2] = 651.66; S[4][3] = -197.67; S[4][4] = 298.76;
+		S[5][1] = -84.56; S[5][2] = -326.28; S[5][3] = -201.09; S[5][4] = 54.38; S[5][5] = -669.62;
+		S[6][1] = 32.21; S[6][2] = -364.79; S[6][3] = 2.64; S[6][4] = -465.16; S[6][5] = -535.01;
+		S[6][6] = -243.90;
+
+    }
+	virtual const Vect<DD> getRight( const Vect<DD>& Vt, DD t )
 	{
-		int N = 35;
-		long double summ1 = 0;
-		long double summ2 = 0;
-		Vect V(Vt);
-		Vect retVect( V.size() );
-		long double Ro, Phi, Lambda, dPhi, dRo, dLambda;
-		long double r0 = sqrt( V[V_X] * V[V_X] + V[V_Y] * V[V_Y] );
+		int N = 7;
+		DD summ1 = 0;
+		DD summ2 = 0;
+		Vect<DD> V(Vt);
+		Vect<DD> retVect( V.size() );
+		DD Ro, Phi, Lambda, dPhi, dRo, dLambda;
+		DD r0 = sqrt( V[V_X] * V[V_X] + V[V_Y] * V[V_Y] );
 		Ro = V.Length();
-		Phi = atan( V[V_Z] / r0 );
-		Lambda = atan( V[V_Y] / V[V_X] );
-		for( int n = 0; n < N; n++ )
+        printf("%f\n",Ro);
+		Phi = atan2( V[V_Z], r0 );
+		Lambda = atan2( V[V_Y], V[V_X] );
+		for( int n = 2; n < N; n++ )
 		{
 			summ2 = 0;
 			for( int m = 0; m <= n; m++ )
 				summ2 += (C[n][m]*cos(m*Lambda) + S[n][m]*sin(m*Lambda))*LegandrSin(n,m,Phi);
 			summ1 += (n+1)*pow(ae/Ro,n+1)*summ2;
 		}
-		dRo = -mu * summ1 / (ae*Ro);
+		dRo = -this->mu * summ1 / (ae*Ro);
+        printf("%f\n",dRo);
 		summ1 = 0;
-		for( int n = 0; n < N; n++ )
+		for( int n = 2; n < N; n++ )
 		{
 			summ2 = 0;
 			for( int m = 0; m <= n; m++ )
 				summ2 += (C[n][m]*cos(m*Lambda) + S[n][m]*sin(m*Lambda))*dLegandrSin(n,m,Phi);
 			summ1 += pow(ae/Ro,n+1)*summ2;
 		}
-		dPhi = -mu * summ1 / (ae*Ro);
+		dPhi = -this->mu * summ1 / (ae*Ro);
 		summ1 = 0;
-		for( int n = 0; n < N; n++ )
+		for( int n = 2; n < N; n++ )
 		{
 			summ2 = 0;
+
 			for( int m = 0; m <= n; m++ )
 				summ2 += (-C[n][m]*sin(m*Lambda) + S[n][m]*cos(m*Lambda))*m*LegandrSin(n,m,Phi);
 			summ1 += pow(ae/Ro,n+1)*summ2;
 		}
-		dLambda = -mu * summ1 / (ae*Ro*cos(Phi));			
-		Matrix MP(3,3);
+		dLambda = -this->mu * summ1 / (ae*Ro*cos(Phi));			
+		Matrix<DD> MP(3,3);
                 MP[0][0] = V[V_X] / Ro; MP[0][1] = -V[V_X] * V[V_Z] / ( Ro * r0 ); MP[0][2] = -V[V_Y] / r0;
                 MP[1][0] = V[V_Y] / Ro; MP[1][1] = -V[V_Y] * V[V_Z] / ( Ro * r0 ); MP[1][2] = V[V_X] / r0;
                 MP[2][0] = V[V_Z] / Ro; MP[2][1] = -r0 / Ro;                       MP[2][2] = 0;
-		Matrix gS;
-		gs.AddRow(Vect(dRo,dPhi,dLambda));
-		gs.Transpose();
-		Matrix res = MP * gS;
-		retVect = V * (-mu/V.Length()) + Vect(res[0][0],res[1][0],res[2][0]);
+		Matrix<DD> gS;
+        Vect<double> dG0(dRo, dPhi, dLambda);
+        //dG0.print();
+		gS.addRow(dG0);
+		gS.Transpose();
+		Matrix<DD> res = MP * gS;
+		retVect[V_X] = V[V_dX];
+		retVect[V_Y] = V[V_dY];
+		retVect[V_Z] = V[V_dZ];
+		retVect[V_dX] = V[V_X]*(-this->mu/V.Length())+res[0][0];
+		retVect[V_dY] = V[V_Y]*(-this->mu/V.Length())+res[1][0]; 
+		retVect[V_dZ] = V[V_Z]*(-this->mu/V.Length())+res[2][0];
 		return retVect;
 	}	
 };
-*/
-class ShapingFilterExp : public Model
+
+inline double randn( double mu, double sigma )
+{
+	static bool deviateAvailable = false;
+	static float storedDeviate;
+	double polar, rsquared, var1, var2;
+	if(!deviateAvailable)
+	{
+		do
+		{
+			var1 = 2.0*( double(rand())/double(RAND_MAX) ) - 1.0;
+			var2 = 2.0*( double(rand())/double(RAND_MAX) ) - 1.0;
+			rsquared = var1*var1 + var2*var2;
+		}
+		while ( rsquared>=1.0 || rsquared == 0.0 );
+		polar = sqrt( -2.0*log(rsquared)/rsquared );
+		storedDeviate = var1*polar;
+		deviateAvailable = true;
+
+		return var2*polar*sigma+mu;
+	}
+	else
+	{
+		deviateAvailable = false;
+		return storedDeviate*sigma+mu;
+	}
+
+}
+
+template<typename DD>
+class ShapingFilterExp : public Model<DD>
 {
  private: 
-	double D, lambda;
+	DD D, lambda;
  public:
-	ShapingFilterExp(double _D, double _lambda)
+	ShapingFilterExp(DD _D, DD _lambda) : Model<DD>()
 	{
-		IV = Vect(2);
-		IV[0] = 0;
-		IV[1] = 0;
+		this->IV = Vect<DD>(2);
+		this->IV[0] = 0;
+		this->IV[1] = 0;
 		D = _D;
 		lambda = _lambda;
 		srand(time(NULL));
 	}
-	virtual const Vect getRight( const Vect& Vt, long double t )
+	virtual const Vect<DD> getRight( const Vect<DD>& Vt, DD t )
 	{
-		Vect V(Vt);
-		Vect retVect(V.size());
+		Vect<DD> V(Vt);
+		Vect<DD> retVect(V.size());
 		//long double nu = sqrt(exp(1/rand())*2*1/t)*sin(rand()*2*M_PI);
-		double nu = rand()/(double)RAND_MAX * 10000 - 5000;
+		DD nu = randn(0, sqrt(D));
 		retVect[0] = V[1];
 		retVect[1] = nu * sqrt(2*D*lambda)-V[0]*lambda;
 		return retVect;

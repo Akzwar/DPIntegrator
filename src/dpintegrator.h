@@ -1,38 +1,47 @@
 #include "model.h"
 #include <math.h>
+
+struct dot
+{
+	double X,Y,Z,step;
+};
+
+
+template<typename DD>
 class DPIntegrator
 {
  private:
-	long double t, t0, tk, step, h, Tout;
-	Vect k[8];
+	DD t, t0, tk, step, h, Tout;
+	Vect<DD> k[8];
 	
-	long double a[8][7];
-	long double b[8];
-	long double sb[8];
-	long double b1[8];
-	long double c[8];
+	DD a[8][7];
+	DD b[8];
+	DD sb[8];
+	DD b1[8];
+	DD c[8];
 
-	long double eps, eps_max, u;
-	long double* keps;
+	DD eps, eps_max, u;
+	DD* keps;
 	
-	Vect OutVect;
-	Vect CurrVect;
+	Vect<DD> OutVect;
+	Vect<DD> CurrVect;
 	bool issmallstep;
-	Vect prevVect, tmpVect, epsVect;
+	Vect<DD> prevVect, tmpVect, epsVect;
  public:
-	Model* M;
+	Model<DD>* M;
 		
+	vector<dot> Result;
 	DPIntegrator(){}
 	~DPIntegrator()
 	{
 		if( keps != NULL )
 			delete [] keps;
 	}
-	DPIntegrator( Model* _M, long double _t0, long double _tk, long double _eps_max, long double _h = 0 )
+	DPIntegrator( Model<DD>* _M, DD _t0, DD _tk, DD _eps_max, DD _h = 0 )
 	{
 		eps = 0;
 		eps_max = _eps_max;
-		long double v = 1;
+		DD v = 1;
 		while ( ( 1 + v ) > 1 )
 		{
 			u = v;
@@ -93,7 +102,7 @@ class DPIntegrator
             	c[6]=1.0;
             	c[7]=1.0;
 		Tout = step+1;
-		keps = new long double[CurrVect.size()];
+		keps = new DD[CurrVect.size()];
 		t = t0;
 	}
 		
@@ -124,10 +133,10 @@ class DPIntegrator
 	
 	void BigStep()
 	{
-		Vect summ;
-		long double s;
+		Vect<DD> summ;
+		DD s;
 		eps = eps_max + 1;
-		double u2 = 2.0 * u / eps_max;
+		DD u2 = 2.0 * u / eps_max;
 		while ( eps > eps_max )
 		{
 			tmpVect = CurrVect;
@@ -136,18 +145,18 @@ class DPIntegrator
 			
 			for( int i = 1; i <= 7; i++ )
 			{
-				summ = Vect(tmpVect.size());
+				summ = Vect<DD>(tmpVect.size());
 				for( int j = 1; j < i; j++ )
 				{
 					summ += k[j] * a[i][j];
 				}
 				k[i] = M->getRight( tmpVect + ( summ * step ), step ); 
 			}
-			summ = Vect(tmpVect.size());
+			summ = Vect<DD>(tmpVect.size());
 			for( int i = 1; i <= 7; i++ )
 				summ += k[i] * b1[i];
 			epsVect += summ * step;
-			summ = Vect(tmpVect.size());
+			summ = Vect<DD>(tmpVect.size());
 			for( int i = 1; i <= 7; i++ )
 				summ += k[i] * b[i];
 			tmpVect += summ*step;
@@ -173,18 +182,69 @@ class DPIntegrator
 		SmallStep();
 		else
 		BigStep();
+		dot rs;
+		rs.X = PhaseVect()[V_X];
+		rs.Y = PhaseVect()[V_Y];
+		rs.Z = PhaseVect()[V_Z];
+		Result.push_back(rs);
 	}
 	
-	Vect PhaseVect()
+	Vect<DD> PhaseVect()
 	{
 		if(issmallstep)
 		return OutVect;
 		return CurrVect;
 	}
-	long double getT()
+	DD getT()
 	{return this->t;}
-	long double getStep()
+	DD getStep()
 	{return this->step;}
-	long double getTk()
+	DD getTk()
 	{return this->tk;}
+};
+
+template<typename DD>
+class EilerIntegrator
+{
+ private:
+	DD t, t0, tk, step;
+	Vect<DD> CurrVect;
+ public:
+	vector<dot> Result;
+	Model<DD> *M;
+	
+	EilerIntegrator(){}
+	EilerIntegrator( Model<DD>* _M, DD _t0, DD _tk, DD _step )
+	{
+		M = _M;
+		t = _t0;
+		tk = _tk;
+		step = _step;
+		CurrVect = M->InitVect();
+		t = t0;
+	}
+	
+	void NextStep()
+	{
+		CurrVect += M->getRight( CurrVect, step ) * step;
+		t += step;
+		dot rd;
+		rd.X = CurrVect[V_X];
+		rd.Y = CurrVect[V_Y];
+		rd.Z = CurrVect[V_Z];
+		Result.push_back(rd);
+	}
+	
+	Vect<DD> PhaseVect()
+	{
+			return CurrVect;
+	}
+
+        DD getT()
+        {return this->t;}
+        DD getStep()
+        {return this->step;}
+        DD getTk()
+        {return this->tk;}
+
 };
